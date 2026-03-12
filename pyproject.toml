@@ -9,6 +9,7 @@ dependencies = []
 [tool.ruff]
 target-version = "py313"
 line-length = 120
+extend-exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -25,12 +26,13 @@ python_version = "3.13"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
+exclude = [".*\\.ipynb"]
+
+[tool.ty]
+exclude = ["*.ipynb"]
 
 [tool.pyrefly]
-project-includes = [
-    "**/*.py*",
-    "**/*.ipynb",
-]
+project-includes = ["**/*.py"]
 
 [dependency-groups]
 lint = [
