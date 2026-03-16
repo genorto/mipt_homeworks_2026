@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-UNKNOWN_COMMAND_MSG = "Неизвестная команда!"
-NONPOSITIVE_VALUE_MSG = "Значение должно быть больше нуля!"
-INCORRECT_DATE_MSG = "Неправильная дата!"
-OP_SUCCESS_MSG = "Добавлено"
+UNKNOWN_COMMAND_MSG = "Unknown command!"
+NONPOSITIVE_VALUE_MSG = "Value must be grater than zero!"
+INCORRECT_DATE_MSG = "Invalid date!"
+OP_SUCCESS_MSG = "Added"
 
 
 def is_leap_year(year: int) -> bool:
@@ -25,6 +25,10 @@ def extract_date(maybe_dt: str) -> tuple[int, int, int] | None:
     :return: typle формата (день, месяц, год) или None, если дата неправильная.
     :rtype: tuple[int, int, int] | None
     """
+
+
+def income_handler(amount: float, income_date: str) -> str:
+    return f"{OP_SUCCESS_MSG} {amount=} {income_date=}"
 
 
 def main() -> None:
