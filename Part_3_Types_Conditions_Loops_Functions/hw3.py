@@ -90,23 +90,20 @@ def extract_date(maybe_dt: str) -> Date | None:
     if maybe_dt.count("-") != DATE_HYPHEN_COUNT:
         return None
 
-    raw_day, raw_month, raw_year = maybe_dt.split("-")
+    raw_date = maybe_dt.split("-")
 
-    day = process_day(raw_day)
-    if day is None:
+    day = process_day(raw_date[0])
+    month = process_month(raw_date[1])
+    year = process_year(raw_date[2])
+
+    if day is None or month is None or year is None:
         return None
 
-    month = process_month(raw_month)
-    if (month is None
-            or (month in SHORT_MONTHS and day == LONG_MONTH_DAYS)):
+    if month in SHORT_MONTHS and day == LONG_MONTH_DAYS:
         return None
 
-    year = process_year(raw_year)
-    if (year is None
-            or (day != LEAP_YEAR_FEBRUARY_DAYS
-                and month == FEBRUARY and is_leap_year(year))
-            or (day > LEAP_YEAR_FEBRUARY_DAYS - 1
-                and month == FEBRUARY and not is_leap_year(year))):
+    is_leap = is_leap_year(year)
+    if month == FEBRUARY and (day > LEAP_YEAR_FEBRUARY_DAYS or (day == LEAP_YEAR_FEBRUARY_DAYS and not is_leap)):
         return None
 
     return day, month, year
@@ -124,26 +121,26 @@ def add_date(day: int, month: int, year: int) -> None:
 def add_income(amount: float, date: Date) -> str:
     day, month, year = date
     add_date(day, month, year)
-    income = database[year][month][day].get(INCOME, float(0))
 
-    if isinstance(income, float):
-        database[year][month][day][INCOME] = income + amount
+    funds = database[year][month][day]
+    if isinstance(funds, dict):
+        income = funds.get(INCOME, float(0))
+
+        if isinstance(income, float):
+            database[year][month][day][INCOME] = income + amount
 
     return OP_SUCCESS_MSG
 
 
 def add_cost(category_name: str, amount: float, date: Date) -> str:
     day, month, year = date
-
     add_date(day, month, year)
 
     costs = database[year][month][day].get(COSTS, {})
 
     if isinstance(costs, dict):
         category_cost = costs.get(category_name, float(0))
-
         costs[category_name] = category_cost + amount
-
         database[year][month][day][COSTS] = costs
 
     return OP_SUCCESS_MSG
