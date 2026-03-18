@@ -36,7 +36,10 @@ def is_leap_year(year: int) -> bool:
     :return: Значение високосности.
     :rtype: bool
     """
-    return (not bool(year % 4) and bool(year % 100)) or not bool(year % 400)
+    if year % 400 == 0:
+        return True
+
+    return bool(year % 4) and not bool(year % 100)
 
 
 def process_day(raw_day: str) -> int | None:
