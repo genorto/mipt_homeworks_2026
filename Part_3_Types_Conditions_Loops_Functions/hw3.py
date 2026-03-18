@@ -21,7 +21,7 @@ STATS_PARAMS_COUNT = 1
 
 Date = tuple[int, int, int]
 Funds = dict[str, float | dict[str, float]]
-Stats = tuple[Funds | None, tuple[float, float, float]]
+Stats = tuple[Funds, tuple[float, float, float]]
 database: dict[Date, Funds] = {}
 
 
@@ -174,27 +174,23 @@ def get_capital(target_date: Date) -> tuple[float, float, float]:
 
 def get_stats(date: Date) -> Stats:
     if date not in database:
-        return None, get_capital(date)
+        return {}, get_capital(date)
     return database[date], get_capital(date)
 
 
-def format_stats(stats: Stats | None, date: str) -> str:
+def format_stats(stats: Stats, date: str) -> str:
     costs: dict[str, float] = {}
-    total_capital = float(0)
-    monthly_income = float(0)
-    monthly_costs = float(0)
 
     if isinstance(stats, dict) and stats:
         costs = stats[0][COSTS]
-        total_capital, monthly_income, monthly_costs = stats[1]
 
-    difference_type = "прибыль составила" if monthly_costs <= monthly_income else "убыток составил"
+    difference_type = "прибыль составила" if stats[1][2] <= stats[1][1] else "убыток составил"
 
     result: list[str] = [f"Ваша статистика по состоянию на {date}:"]
-    result.append(f"Суммарный капитал: {total_capital} рублей")
-    result.append(f"B этом месяце {difference_type} {abs(monthly_costs - monthly_income)} рублей")
-    result.append(f"Доходы: {monthly_income} рублей")
-    result.append(f"Расходы: {monthly_costs} рублей\n")
+    result.append(f"Суммарный капитал: {stats[1][0]} рублей")
+    result.append(f"B этом месяце {difference_type} {abs(stats[1][1] - stats[1][2])} рублей")
+    result.append(f"Доходы: {stats[1][1]} рублей")
+    result.append(f"Расходы: {stats[1][2]} рублей\n")
     result.append("Детализация (категория: сумма):")
 
     if isinstance(costs, dict):
