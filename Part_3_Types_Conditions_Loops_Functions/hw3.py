@@ -21,7 +21,7 @@ STATS_PARAMS_COUNT = 1
 
 Date = tuple[int, int, int]
 Funds = dict[str, float | dict[str, float]]
-Stats = tuple[Funds, tuple[float, float, float]] | tuple[None, tuple[float, float, float]]
+Stats = tuple[Funds | None, tuple[float, float, float]]
 database: dict[Date, Funds] = {}
 
 
@@ -135,27 +135,39 @@ def add_cost(category_name: str, amount: float, date: Date) -> str:
     return OP_SUCCESS_MSG
 
 
+def get_capital_date(data: tuple[Date, Funds], target_date: Date) -> list[float]:
+    result = [float(0), float(0), float(0)]
+
+    income = data[1].get(INCOME, float(0))
+    costs_dict = data[1].get(COSTS, {})
+    costs = float(0)
+
+    if isinstance(costs_dict, dict):
+        costs = sum(cost for cost in costs_dict.values() if isinstance(cost, float))
+
+    if isinstance(income, float):
+        result[0] += income - costs
+
+        if data[0][2] == target_date[2] and data[0][1] == target_date[1]:
+            result[1] += income
+            result[2] += costs
+
+    return result
+
+
 def get_capital(target_date: Date) -> tuple[float, float, float]:
     total_capital = float(0)
     monthly_income = float(0)
     monthly_costs = float(0)
 
-    for date, data in database.items():
-        if date[2] == target_date[2] and date[1] == target_date[1] and date[0] > target_date[0]:
+    for data in database.items():
+        if data[0][2] == target_date[2] and data[0][1] == target_date[1] and data[0][0] > target_date[0]:
             continue
 
-        day_income = data.get(INCOME, float(0))
-        costs_dict = data.get(COSTS, {})
-        day_costs = float(0)
-
-        if isinstance(costs_dict, dict):
-            day_costs = sum(cost for cost in costs_dict.values() if isinstance(cost, float))
-        if isinstance(day_income, float):
-            total_capital += (day_income - day_costs)
-
-            if date[2] == target_date[2] and date[1] == target_date[1]:
-                monthly_income += day_income
-                monthly_costs += day_costs
+        result = get_capital_date(data, target_date)
+        total_capital += result[0]
+        monthly_income += result[1]
+        monthly_costs += result[2]
 
     return total_capital, monthly_income, monthly_costs
 
