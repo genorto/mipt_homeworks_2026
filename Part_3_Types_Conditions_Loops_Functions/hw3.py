@@ -21,11 +21,8 @@ STATS_PARAMS_COUNT = 1
 
 Date = tuple[int, int, int]
 Funds = dict[str, float | dict[str, float]]
-Stats = tuple[Funds, tuple[float, float, float]]
-
-MonthData = dict[int, Funds]
-YearData = dict[int, MonthData]
-database: dict[int, YearData] = {}
+Stats = tuple[Funds, tuple[float, float, float]] | tuple[None, tuple[float, float, float]]
+database: dict[Date, Funds] = {}
 
 
 def is_leap_year(year: int) -> bool:
@@ -109,86 +106,75 @@ def extract_date(maybe_dt: str) -> Date | None:
     return day, month, year
 
 
-def add_date(day: int, month: int, year: int) -> None:
-    if year not in database:
-        database[year] = {}
-    if month not in database[year]:
-        database[year][month] = {}
-    if day not in database[year][month]:
-        database[year][month][day] = {}
+def add_date(date: Date) -> None:
+    if date not in database:
+        database[date] = {}
 
 
 def add_income(amount: float, date: Date) -> str:
-    day, month, year = date
-    add_date(day, month, year)
+    add_date(date)
 
-    funds = database[year][month][day]
+    funds = database[date]
     if isinstance(funds, dict):
         income = funds.get(INCOME, float(0))
-
         if isinstance(income, float):
-            database[year][month][day][INCOME] = income + amount
+            database[date][INCOME] = income + amount
 
     return OP_SUCCESS_MSG
 
 
 def add_cost(category_name: str, amount: float, date: Date) -> str:
-    day, month, year = date
-    add_date(day, month, year)
+    add_date(date)
 
-    costs = database[year][month][day].get(COSTS, {})
-
+    costs = database[date].get(COSTS, {})
     if isinstance(costs, dict):
         category_cost = costs.get(category_name, float(0))
         costs[category_name] = category_cost + amount
-        database[year][month][day][COSTS] = costs
+        database[date][COSTS] = costs
 
     return OP_SUCCESS_MSG
 
 
-def get_capital(date: Date) -> tuple[float, float, float]:
+def get_capital(target_date: Date) -> tuple[float, float, float]:
     total_capital = float(0)
     monthly_income = float(0)
     monthly_costs = float(0)
 
-    for year, months in database.items():
-        if year <= date[2]:
-            for month, days in months.items():
-                if year < date[2] or month <= date[1]:
-                    for day, data in days.items():
-                        if year == date[2] and month == date[1] and day > date[0]:
-                            continue
+    for date, data in database.items():
+        if date[2] == target_date[2] and date[1] == target_date[1] and date[0] > target_date[0]:
+            continue
 
-                        day_income = data.get(INCOME, float(0))
-                        costs_dict = data.get(COSTS, {})
-                        day_costs = float(0)
+        day_income = data.get(INCOME, float(0))
+        costs_dict = data.get(COSTS, {})
+        day_costs = float(0)
 
-                        if isinstance(costs_dict, dict):
-                            day_costs = sum(cost for cost in costs_dict.values() if isinstance(cost, float))
-                        if isinstance(day_income, float):
-                            total_capital += (day_income - day_costs)
+        if isinstance(costs_dict, dict):
+            day_costs = sum(cost for cost in costs_dict.values() if isinstance(cost, float))
+        if isinstance(day_income, float):
+            total_capital += (day_income - day_costs)
 
-                            if year == date[2] and month == date[1]:
-                                monthly_income += day_income
-                                monthly_costs += day_costs
+            if date[2] == target_date[2] and date[1] == target_date[1]:
+                monthly_income += day_income
+                monthly_costs += day_costs
 
     return total_capital, monthly_income, monthly_costs
 
 
-def get_stats(date: Date) -> Stats | None:
-    day, month, year = date
-
-    if (year not in database
-            or month not in database[year]
-            or day not in database[year][month]):
-        return None
-
-    return database[year][month][day], get_capital(date)
+def get_stats(date: Date) -> Stats:
+    if date not in database:
+        return None, get_capital(date)
+    return database[date], get_capital(date)
 
 
-def format_stats(stats: Stats, date: str) -> str:
-    costs = stats[0].get(COSTS, {})
-    total_capital, monthly_income, monthly_costs = stats[1]
+def format_stats(stats: Stats | None, date: str) -> str:
+    costs: dict[str, float] = {}
+    total_capital = float(0)
+    monthly_income = float(0)
+    monthly_costs = float(0)
+
+    if isinstance(stats, dict) and stats:
+        costs = stats[0][COSTS]
+        total_capital, monthly_income, monthly_costs = stats[1]
 
     difference_type = "прибыль составила" if monthly_costs <= monthly_income else "убыток составил"
 
@@ -199,7 +185,7 @@ def format_stats(stats: Stats, date: str) -> str:
     result.append(f"Расходы: {monthly_costs} рублей\n")
     result.append("Детализация (категория: сумма):")
 
-    if isinstance(costs, dict) and costs:
+    if isinstance(costs, dict):
         for number, category in enumerate(sorted(costs.keys()), 1):
             result.append(f"{number}. {category}: {costs[category]}")
 
@@ -211,15 +197,12 @@ def income_handler(params: list[str]) -> str:
         return UNKNOWN_COMMAND_MSG
 
     amount = float(params[0].replace(",", "."))
-
     if amount is None:
         return INCORRECT_AMOUNT_MSG
-
     if amount <= float(0):
         return NONPOSITIVE_VALUE_MSG
 
     date = extract_date(params[1])
-
     if date is None:
         return INCORRECT_DATE_MSG
 
@@ -233,14 +216,12 @@ def cost_handler(params: list[str]) -> str:
     category_name = params[0]
 
     amount = float(params[1].replace(",", "."))
-
     if amount is None:
         return INCORRECT_AMOUNT_MSG
     if amount <= float(0):
         return NONPOSITIVE_VALUE_MSG
 
     date = extract_date(params[2])
-
     if date is None:
         return INCORRECT_DATE_MSG
 
@@ -252,41 +233,29 @@ def stats_handler(params: list[str]) -> str:
         return UNKNOWN_COMMAND_MSG
 
     date = extract_date(params[0])
-
     if date is None:
         return INCORRECT_DATE_MSG
 
-    stats = get_stats(date)
-
-    if stats is None:
-        return INCORRECT_DATE_MSG
-
-    return format_stats(stats, params[0])
+    return format_stats(get_stats(date), params[0])
 
 
 def main() -> None:
     input_list = input().split(" ")
-
     query = input_list[0]
 
     while query != "exit":
         match query:
             case "income":
                 response = income_handler(input_list[1:])
-
             case "cost":
                 response = cost_handler(input_list[1:])
-
             case "stats":
                 response = stats_handler(input_list[1:])
-
             case _:
                 response = UNKNOWN_COMMAND_MSG
-
         print(response)
 
         input_list = input().split(" ")
-
         query = input_list[0]
 
 
