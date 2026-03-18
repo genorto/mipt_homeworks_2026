@@ -21,7 +21,7 @@ STATS_PARAMS_COUNT = 1
 
 Date = tuple[int, int, int]
 Funds = dict[str, float | dict[str, float]]
-Stats = tuple[Funds, tuple[float, float, float]]
+Stats = tuple[Funds, list[float]]
 database: dict[Date, Funds] = {}
 
 
@@ -75,6 +75,10 @@ def process_year(raw_year: str) -> int | None:
     return year
 
 
+def is_february(day: int, year: int) -> bool:
+    return day > LEAP_YEAR_FEBRUARY_DAYS or (day == LEAP_YEAR_FEBRUARY_DAYS and not is_leap_year(year))
+
+
 def extract_date(maybe_dt: str) -> Date | None:
     """
     Парсит дату формата DD-MM-YYYY из строки.
@@ -95,12 +99,9 @@ def extract_date(maybe_dt: str) -> Date | None:
 
     if day is None or month is None or year is None:
         return None
-
     if month in SHORT_MONTHS and day == LONG_MONTH_DAYS:
         return None
-
-    is_leap = is_leap_year(year)
-    if month == FEBRUARY and (day > LEAP_YEAR_FEBRUARY_DAYS or (day == LEAP_YEAR_FEBRUARY_DAYS and not is_leap)):
+    if month == FEBRUARY and is_february(day, year):
         return None
 
     return day, month, year
@@ -135,11 +136,11 @@ def add_cost(category_name: str, amount: float, date: Date) -> str:
     return OP_SUCCESS_MSG
 
 
-def get_capital_date(data: tuple[Date, Funds], target_date: Date) -> list[float]:
+def get_capital_date(date: Date, data: Funds, target_date: Date) -> list[float]:
     result = [float(0), float(0), float(0)]
 
-    income = data[1].get(INCOME, float(0))
-    costs_dict = data[1].get(COSTS, {})
+    income = data.get(INCOME, float(0))
+    costs_dict = data.get(COSTS, {})
     costs = float(0)
 
     if isinstance(costs_dict, dict):
@@ -148,28 +149,26 @@ def get_capital_date(data: tuple[Date, Funds], target_date: Date) -> list[float]
     if isinstance(income, float):
         result[0] += income - costs
 
-        if data[0][2] == target_date[2] and data[0][1] == target_date[1]:
+        if date[2] == target_date[2] and date[1] == target_date[1]:
             result[1] += income
             result[2] += costs
 
     return result
 
 
-def get_capital(target_date: Date) -> tuple[float, float, float]:
-    total_capital = float(0)
-    monthly_income = float(0)
-    monthly_costs = float(0)
+def get_capital(target_date: Date) -> list[float]:
+    result = [float(0), float(0), float(0)]
 
-    for data in database.items():
-        if data[0][2] == target_date[2] and data[0][1] == target_date[1] and data[0][0] > target_date[0]:
+    for date, data in database.items():
+        if date[2] == target_date[2] and date[1] == target_date[1] and date[0] > target_date[0]:
             continue
 
-        result = get_capital_date(data, target_date)
-        total_capital += result[0]
-        monthly_income += result[1]
-        monthly_costs += result[2]
+        data_result = get_capital_date(date, data, target_date)
+        result[0] += data_result[0]
+        result[1] += data_result[1]
+        result[2] += data_result[2]
 
-    return total_capital, monthly_income, monthly_costs
+    return result
 
 
 def get_stats(date: Date) -> Stats:
@@ -178,12 +177,13 @@ def get_stats(date: Date) -> Stats:
     return database[date], get_capital(date)
 
 
-def format_header(capital: tuple[float, float, float], date: str) -> list[str]:
+def format_header(capital: list[float], date: str) -> list[str]:
     difference_type = "прибыль составила" if capital[2] <= capital[1] else "убыток составил"
+    difference = abs(capital[1] - capital[2])
 
     result: list[str] = [f"Ваша статистика по состоянию на {date}:"]
     result.append(f"Суммарный капитал: {capital[0]} рублей")
-    result.append(f"B этом месяце {difference_type} {abs(capital[1] - capital[2])} рублей")
+    result.append(f"B этом месяце {difference_type} {difference} рублей")
     result.append(f"Доходы: {capital[1]} рублей")
     result.append(f"Расходы: {capital[2]} рублей\n")
     result.append("Детализация (категория: сумма):")
