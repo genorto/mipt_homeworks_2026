@@ -178,20 +178,25 @@ def get_stats(date: Date) -> Stats:
     return database[date], get_capital(date)
 
 
+def format_header(capital: tuple[float, float, float], date: str) -> list[str]:
+    difference_type = "прибыль составила" if capital[2] <= capital[1] else "убыток составил"
+
+    result: list[str] = [f"Ваша статистика по состоянию на {date}:"]
+    result.append(f"Суммарный капитал: {capital[0]} рублей")
+    result.append(f"B этом месяце {difference_type} {abs(capital[1] - capital[2])} рублей")
+    result.append(f"Доходы: {capital[1]} рублей")
+    result.append(f"Расходы: {capital[2]} рублей\n")
+    result.append("Детализация (категория: сумма):")
+
+    return result
+
+
 def format_stats(stats: Stats, date: str) -> str:
     costs: dict[str, float] = {}
-
     if isinstance(stats, dict) and stats:
         costs = stats[0][COSTS]
 
-    difference_type = "прибыль составила" if stats[1][2] <= stats[1][1] else "убыток составил"
-
-    result: list[str] = [f"Ваша статистика по состоянию на {date}:"]
-    result.append(f"Суммарный капитал: {stats[1][0]} рублей")
-    result.append(f"B этом месяце {difference_type} {abs(stats[1][1] - stats[1][2])} рублей")
-    result.append(f"Доходы: {stats[1][1]} рублей")
-    result.append(f"Расходы: {stats[1][2]} рублей\n")
-    result.append("Детализация (категория: сумма):")
+    result = format_header(stats[1], date)
 
     if isinstance(costs, dict):
         for number, category in enumerate(sorted(costs.keys()), 1):
