@@ -149,7 +149,7 @@ def get_capital_date(date: Date, data: Funds, target_date: Date) -> list[float]:
     if isinstance(income, float):
         result[0] += income - costs
 
-        if date[2] == target_date[2] and date[1] == target_date[1]:
+        if date[1:3] == target_date[1:3]:
             result[1] += income
             result[2] += costs
 
@@ -160,7 +160,8 @@ def get_capital(target_date: Date) -> list[float]:
     result = [float(0), float(0), float(0)]
 
     for date, data in database.items():
-        if date[2] == target_date[2] and date[1] == target_date[1] and date[0] > target_date[0]:
+        is_day_after = date[0] > target_date[0]
+        if date[1:3] == target_date[1:3] and is_day_after:
             continue
 
         data_result = get_capital_date(date, data, target_date)
