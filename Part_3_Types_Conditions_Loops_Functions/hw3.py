@@ -5,26 +5,27 @@ NONPOSITIVE_VALUE_MSG = "Value must be grater than zero!"
 INCORRECT_AMOUNT_MSG = "Invalid amount!"
 INCORRECT_DATE_MSG = "Invalid date!"
 OP_SUCCESS_MSG = "Added"
-DIGITS = "0123456789"
-SMALL_MONTHS = [4, 6, 9, 11]
+
+INCOME = "income"
+COSTS = "costs"
+
+SHORT_MONTHS = (4, 6, 9, 11)
 FEBRUARY = 2
-BIG_MONTH_DAY_COUNT = 31
-LEAP_YEAR_DAY_COUNT = 29
-DAY_LENGTH = 2
-MONTH_LENGTH = 2
-YEAR_LENGTH = 4
+LONG_MONTH_DAYS = 31
+LEAP_YEAR_FEBRUARY_DAYS = 29
+
 DATE_HYPHEN_COUNT = 2
 INCOME_PARAMS_COUNT = 2
 COST_PARAMS_COUNT = 3
 STATS_PARAMS_COUNT = 1
 
 Date = tuple[int, int, int]
-
 Funds = dict[str, float | dict[str, float]]
-
 Stats = tuple[Funds, tuple[float, float, float]]
 
-database: dict[int, dict[int, dict[int, Funds]]] = {}
+MonthData = dict[int, Funds]
+YearData = dict[int, MonthData]
+database: dict[int, YearData] = {}
 
 
 def is_leap_year(year: int) -> bool:
@@ -39,9 +40,7 @@ def is_leap_year(year: int) -> bool:
 
 
 def process_day(raw_day: str) -> int | None:
-    if (len(raw_day) != DAY_LENGTH
-            or raw_day[0] not in DIGITS
-            or raw_day[1] not in DIGITS):
+    if not raw_day.isdigit():
         return None
 
     day = int(raw_day)
@@ -53,9 +52,7 @@ def process_day(raw_day: str) -> int | None:
 
 
 def process_month(raw_month: str) -> int | None:
-    if (len(raw_month) != MONTH_LENGTH
-            or raw_month[0] not in DIGITS
-            or raw_month[1] not in DIGITS):
+    if not raw_month.isdigit():
         return None
 
     month = int(raw_month)
@@ -67,14 +64,15 @@ def process_month(raw_month: str) -> int | None:
 
 
 def process_year(raw_year: str) -> int | None:
-    if (len(raw_year) != YEAR_LENGTH
-            or raw_year[0] not in DIGITS
-            or raw_year[1] not in DIGITS
-            or raw_year[2] not in DIGITS
-            or raw_year[3] not in DIGITS):
+    if not raw_year.isdigit():
         return None
 
-    return int(raw_year)
+    year = int(raw_year)
+
+    if year not in range(10000):
+        return None
+
+    return year
 
 
 def extract_date(maybe_dt: str) -> Date | None:
@@ -92,22 +90,19 @@ def extract_date(maybe_dt: str) -> Date | None:
     raw_day, raw_month, raw_year = maybe_dt.split("-")
 
     day = process_day(raw_day)
-
     if day is None:
         return None
 
     month = process_month(raw_month)
-
     if (month is None
-            or (month in SMALL_MONTHS and day == BIG_MONTH_DAY_COUNT)):
+            or (month in SHORT_MONTHS and day == LONG_MONTH_DAYS)):
         return None
 
     year = process_year(raw_year)
-
     if (year is None
-            or (day != LEAP_YEAR_DAY_COUNT
+            or (day != LEAP_YEAR_FEBRUARY_DAYS
                 and month == FEBRUARY and is_leap_year(year))
-            or (day > LEAP_YEAR_DAY_COUNT - 1
+            or (day > LEAP_YEAR_FEBRUARY_DAYS - 1
                 and month == FEBRUARY and not is_leap_year(year))):
         return None
 
@@ -117,23 +112,19 @@ def extract_date(maybe_dt: str) -> Date | None:
 def add_date(day: int, month: int, year: int) -> None:
     if year not in database:
         database[year] = {}
-
     if month not in database[year]:
         database[year][month] = {}
-
     if day not in database[year][month]:
         database[year][month][day] = {}
 
 
 def add_income(amount: float, date: Date) -> str:
     day, month, year = date
-
     add_date(day, month, year)
-
-    income = database[year][month][day].get("income", float(0))
+    income = database[year][month][day].get(INCOME, float(0))
 
     if isinstance(income, float):
-        database[year][month][day]["income"] = income + amount
+        database[year][month][day][INCOME] = income + amount
 
     return OP_SUCCESS_MSG
 
@@ -143,47 +134,43 @@ def add_cost(category_name: str, amount: float, date: Date) -> str:
 
     add_date(day, month, year)
 
-    costs = database[year][month][day].get("costs", {})
+    costs = database[year][month][day].get(COSTS, {})
 
     if isinstance(costs, dict):
         category_cost = costs.get(category_name, float(0))
 
         costs[category_name] = category_cost + amount
 
-        database[year][month][day]["costs"] = costs
+        database[year][month][day][COSTS] = costs
 
     return OP_SUCCESS_MSG
 
 
 def get_capital(date: Date) -> tuple[float, float, float]:
-    final_day, final_month, final_year = date
-    total_capital, monthly_income, monthly_costs = float(0), float(0), float(0)
+    total_capital = float(0)
+    monthly_income = float(0)
+    monthly_costs = float(0)
 
     for year, months in database.items():
-        if year > final_year:
-            continue
+        if year <= date[2]:
+            for month, days in months.items():
+                if year < date[2] or month <= date[1]:
+                    for day, data in days.items():
+                        if year == date[2] and month == date[1] and day > date[0]:
+                            continue
 
-        for month, days in months.items():
-            if year == final_year and month > final_month:
-                continue
+                        day_income = data.get(INCOME, float(0))
+                        costs_dict = data.get(COSTS, {})
+                        day_costs = float(0)
 
-            for day, data in days.items():
-                if year == final_year and month == final_month and day > final_day:
-                    continue
+                        if isinstance(costs_dict, dict):
+                            day_costs = sum(cost for cost in costs_dict.values() if isinstance(cost, float))
+                        if isinstance(day_income, float):
+                            total_capital += (day_income - day_costs)
 
-                day_income = data.get("income", float(0))
-
-                costs_dict = data.get("costs", {})
-                day_costs = sum(costs_dict.values()) if isinstance(costs_dict, dict) else float(0)
-
-                if not isinstance(day_income, float):
-                    continue
-
-                total_capital += (day_income - day_costs)
-
-                if year == final_year and month == final_month:
-                    monthly_income += day_income
-                    monthly_costs += day_costs
+                            if year == date[2] and month == date[1]:
+                                monthly_income += day_income
+                                monthly_costs += day_costs
 
     return total_capital, monthly_income, monthly_costs
 
@@ -200,21 +187,17 @@ def get_stats(date: Date) -> Stats | None:
 
 
 def format_stats(stats: Stats, date: str) -> str:
-    funds, info = stats
-
-    total_capital, monthly_income, monthly_costs = info
+    costs = stats[0].get(COSTS, {})
+    total_capital, monthly_income, monthly_costs = stats[1]
 
     difference_type = "прибыль составила" if monthly_costs <= monthly_income else "убыток составил"
-    difference = abs(monthly_costs - monthly_income)
 
     result: list[str] = [f"Ваша статистика по состоянию на {date}:"]
     result.append(f"Суммарный капитал: {total_capital} рублей")
-    result.append(f"B этом месяце {difference_type} {difference} рублей")
+    result.append(f"B этом месяце {difference_type} {abs(monthly_costs - monthly_income)} рублей")
     result.append(f"Доходы: {monthly_income} рублей")
     result.append(f"Расходы: {monthly_costs} рублей\n")
     result.append("Детализация (категория: сумма):")
-
-    costs = funds.get("costs", {})
 
     if isinstance(costs, dict) and costs:
         for number, category in enumerate(sorted(costs.keys()), 1):
@@ -253,7 +236,6 @@ def cost_handler(params: list[str]) -> str:
 
     if amount is None:
         return INCORRECT_AMOUNT_MSG
-
     if amount <= float(0):
         return NONPOSITIVE_VALUE_MSG
 
