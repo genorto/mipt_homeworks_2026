@@ -1,10 +1,22 @@
+from utils import AGENT, ROLE, CONTENT, Message
+
+
+# light green
+def _format_agent_msg(content: str) -> str:
+    return f'\033[38;2;152;251;152m{content}\033[0m'
+
+
+# dark blue
+def _format_system_msg(content: str) -> str:
+    return f'\033[94m{content}\033[0m'
+
+
 class Cli:
-	def _format_agent_msg(self, content: str) -> None:
-		return f'\033[38;2;152;251;152m{content}\033[0m'
+    def print_msg(self, msg: Message) -> None:
+        if msg[ROLE] == AGENT:
+            print(_format_agent_msg(msg[CONTENT]))
+            return
+        print(_format_system_msg(msg[CONTENT]))
 
-	def print_msg(self, msg: dict[str, str]) -> None:
-		if msg['role'] == 'assistant':
-			print(self._format_agent_msg(msg['content']))
-
-	def flush(self):
-		print("\033[H\033[J", end="")
+    def flush(self):
+        print('\033[H\033[J', end='')
