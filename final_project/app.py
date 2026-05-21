@@ -1,75 +1,64 @@
 from agent.agent import Agent
 from agent.config import Config
 from cli import Cli
-from utils import (
+from utils.constants import (
     QUIT,
     RESET,
     FILE_CHUNK,
-    SYSTEM,
     ASK_PROMPT,
     ENTER_FILE_PATH,
     TYPE_USER_PROMPT,
     ENTER_TO_CONTINUE,
     FILE_PROCESSED,
-    FILE_PATH_PREFIX,
-    FILE_PATH_POSTFIX,
-    create_msg,
 )
-
-
-def _insert_file(text: str) -> str:
-    begin = text.find(FILE_PATH_PREFIX) + 3
-    end = text.find(FILE_PATH_POSTFIX, begin + 2)
-    file_path = text[begin:end]
-    with open(file_path) as file:
-        content = file.read()
-    target = FILE_PATH_PREFIX + file_path + FILE_PATH_POSTFIX
-    return text.replace(target, content)
-
-
-def _format_query(query: str) -> str:
-    while FILE_PATH_PREFIX in query:
-        query = _insert_file(query)
-    return query
+from utils.message import SYSTEM, create_msg
+from utils.files import FileException, read_file, insert_files
+from utils.chunks import (
+    FORCE,
+    FileChunkParams,
+    ParamsException,
+    format_file_chunk_params,
+    divide_by_chunks,
+)
 
 
 class App:
     agent: Agent
     cli: Cli
-    system_prompt: str
 
-    def __init__(self):
+    def __init__(self) -> None:
         config = Config()
         self.agent = Agent(config)
         self.cli = Cli()
-        self.system_prompt = f'System prompt: {config.system_prompt}'
 
-    def _reset(self):
+    def _reset(self) -> None:
         self.agent.reset()
         self.cli.flush()
 
-    def _process_chunks(self, user_prompt: str, chunks: list[str]) -> None:
+    def _process_chunks(self, user_prompt: str, raw_chunks: str, params: FileChunkParams) -> None:
+        chunks = divide_by_chunks(raw_chunks, params)
         for chunk in chunks:
             response = self.agent.process_chunk(user_prompt, chunk)
             if response:
                 self.cli.print_msg(response)
+            if params[FORCE]:
+                continue
             self.cli.print_msg(create_msg(SYSTEM, ENTER_TO_CONTINUE))
             input()
 
-    def _file_chunk(self) -> None:
+    def _file_chunk(self, raw_params: str) -> None:
         try:
+            params = format_file_chunk_params(raw_params)
             self.cli.print_msg(create_msg(SYSTEM, ENTER_FILE_PATH))
-            with open(input()) as file:
-                content = file.read()
+            content = read_file(input())
             self.cli.print_msg(create_msg(SYSTEM, TYPE_USER_PROMPT))
-            self._process_chunks(input(), content.split('\n'))
+            self._process_chunks(input(), content, params)
             self.cli.print_msg(create_msg(SYSTEM, FILE_PROCESSED))
-        except KeyboardInterrupt:
-            print()
+        except (ParamsException, FileException) as e:
+            self.cli.print_msg(create_msg(SYSTEM, str(e)))
 
-    def run(self):
+    def run(self) -> None:
         self.cli.flush()
-        self.cli.print_msg(create_msg(SYSTEM, self.system_prompt))
         while True:
             self.cli.print_msg(create_msg(SYSTEM, ASK_PROMPT))
             query = input()
@@ -80,9 +69,13 @@ class App:
                 continue
             name, _, args = query.partition(' ')
             if name == FILE_CHUNK:
-                self._file_chunk()
+                self._file_chunk(args)
                 continue
-            content = _format_query(query)
+            try:
+                content = insert_files(query)
+            except FileException as e:
+                self.cli.print_msg(create_msg(SYSTEM, str(e)))
+                continue
             response = self.agent.request(content)
             if response:
                 self.cli.print_msg(response)

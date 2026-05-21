@@ -1,4 +1,4 @@
-from utils import AGENT, ROLE, CONTENT, Message
+from utils.message import AGENT, ROLE, CONTENT, Message
 
 
 # light green
@@ -18,5 +18,5 @@ class Cli:
             return
         print(_format_system_msg(msg[CONTENT]))
 
-    def flush(self):
+    def flush(self) -> None:
         print('\033[H\033[J', end='')

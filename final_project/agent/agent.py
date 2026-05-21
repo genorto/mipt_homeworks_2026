@@ -1,12 +1,12 @@
 from agent.gateway import Gateway
 from agent.config import Config
-from utils import SYSTEM, USER, AGENT, CONTENT, Message, create_msg
+from utils.message import SYSTEM, USER, AGENT, CONTENT, Message, create_msg
 
 
 class Agent:
-    limit_message: int
-    limit_chars: int
-    system_prompt: Message
+    limit_message: int | None
+    limit_chars: int | None
+    system_prompt: Message | None
     gateway: Gateway
     context: list[Message]
     count_char: int
@@ -14,13 +14,15 @@ class Agent:
     def __init__(self, config: Config):
         self.limit_message = config.limit_message
         self.limit_chars = config.limit_chars
-        self.system_prompt = create_msg(SYSTEM, config.system_prompt)
+        self.system_prompt = (
+            create_msg(SYSTEM, config.system_prompt) if config.system_prompt else None
+        )
         self.gateway = Gateway(config)
         self.context = []
         self.count_char = 0
 
     def _pop_first(self) -> None:
-        self.count_char -= len(self.context[0])
+        self.count_char -= len(self.context[0][CONTENT])
         self.context = self.context[1:]
 
     def _cut_first(self, count: int) -> None:
@@ -41,7 +43,9 @@ class Agent:
             else:
                 self._cut_first(diff)
 
-    def _post_context(self) -> str:
+    def _post_context(self) -> str | None:
+        if self.system_prompt is None:
+            return self.gateway.request(self.context)
         content = [self.system_prompt] + self.context
         return self.gateway.request(content)
 
@@ -49,10 +53,11 @@ class Agent:
         user_msg = create_msg(USER, content)
         self._add_msg_to_context(user_msg)
         response = self._post_context()
-        if response:
-            response_msg = create_msg(AGENT, response)
-            self._add_msg_to_context(response_msg)
-            return response_msg
+        if response is None:
+            return None
+        response_msg = create_msg(AGENT, response)
+        self._add_msg_to_context(response_msg)
+        return response_msg
 
     def process_chunk(self, user_prompt: str, chunk: str) -> Message | None:
         user_msg = create_msg(USER, user_prompt)
@@ -60,8 +65,9 @@ class Agent:
         chunk_msg = create_msg(USER, chunk)
         self._add_msg_to_context(chunk_msg)
         response = self._post_context()
-        if response:
-            return create_msg(AGENT, response)
+        if response is None:
+            return None
+        return create_msg(AGENT, response)
 
     def reset(self) -> None:
         self.context = []
