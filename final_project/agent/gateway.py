@@ -3,6 +3,11 @@ from openai import OpenAI
 from utils.message import Message
 
 
+class AgentException(Exception):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+
 class Gateway:
     client: OpenAI
     temperature: float
@@ -26,3 +31,5 @@ class Gateway:
             return response.choices[0].message.content
         except KeyboardInterrupt:
             return None
+        except Exception as e:
+            raise AgentException(e) from e

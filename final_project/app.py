@@ -1,17 +1,9 @@
 from agent.agent import Agent
 from agent.config import Config
+from agent.gateway import AgentException
 from cli import Cli
-from utils.constants import (
-    QUIT,
-    RESET,
-    FILE_CHUNK,
-    ASK_PROMPT,
-    ENTER_FILE_PATH,
-    TYPE_USER_PROMPT,
-    ENTER_TO_CONTINUE,
-    FILE_PROCESSED,
-)
-from utils.message import SYSTEM, create_msg
+from utils.constants import Commands, SystemMessages
+from utils.message import Roles, Message, create_msg
 from utils.files import FileException, read_file, insert_files
 from utils.chunks import (
     FORCE,
@@ -41,42 +33,62 @@ class App:
             response = self.agent.process_chunk(user_prompt, chunk)
             if response:
                 self.cli.print_msg(response)
+
             if params[FORCE]:
                 continue
-            self.cli.print_msg(create_msg(SYSTEM, ENTER_TO_CONTINUE))
+
+            self.cli.print_msg(create_msg(Roles.SYSTEM, SystemMessages.ENTER_TO_CONTINUE))
             input()
 
     def _file_chunk(self, raw_params: str) -> None:
         try:
             params = format_file_chunk_params(raw_params)
-            self.cli.print_msg(create_msg(SYSTEM, ENTER_FILE_PATH))
+            self.cli.print_msg(create_msg(Roles.SYSTEM, SystemMessages.ENTER_FILE_PATH))
+
             content = read_file(input())
-            self.cli.print_msg(create_msg(SYSTEM, TYPE_USER_PROMPT))
+            self.cli.print_msg(create_msg(Roles.SYSTEM, SystemMessages.TYPE_USER_PROMPT))
+
             self._process_chunks(input(), content, params)
-            self.cli.print_msg(create_msg(SYSTEM, FILE_PROCESSED))
+            self.cli.print_msg(create_msg(Roles.SYSTEM, SystemMessages.FILE_PROCESSED))
         except (ParamsException, FileException) as e:
-            self.cli.print_msg(create_msg(SYSTEM, str(e)))
+            self.cli.print_msg(create_msg(Roles.SYSTEM, str(e)))
 
     def run(self) -> None:
         self.cli.flush()
         while True:
-            self.cli.print_msg(create_msg(SYSTEM, ASK_PROMPT))
+            self.cli.print_msg(create_msg(Roles.SYSTEM, SystemMessages.ASK_PROMPT))
             query = input()
-            if query == QUIT:
+
+            if query == Commands.QUIT:
                 break
-            if query == RESET:
+
+            if query == Commands.RESET:
                 self._reset()
                 continue
+
             name, _, args = query.partition(' ')
-            if name == FILE_CHUNK:
+            if name == Commands.FILE_CHUNK:
                 self._file_chunk(args)
                 continue
+
             try:
                 content = insert_files(query)
             except FileException as e:
-                self.cli.print_msg(create_msg(SYSTEM, str(e)))
+                self.cli.print_msg(create_msg(Roles.SYSTEM, str(e)))
                 continue
-            response = self.agent.request(content)
+
+            response: Message | None
+            try:
+                response = self.agent.request(content)
+            except AgentException as e:
+                self.cli.print_msg(create_msg(Roles.SYSTEM, str(e)))
+                continue
+            except Exception as e:
+                self.cli.print_msg(
+                    create_msg(Roles.SYSTEM, SystemMessages.UNEXPECTED_ERROR + str(e))
+                )
+                continue
+
             if response:
                 self.cli.print_msg(response)
             else:

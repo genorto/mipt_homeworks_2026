@@ -1,7 +1,12 @@
+from enum import StrEnum
 import os
 
-FILE_PATH_PREFIX = '@::'
-FILE_PATH_POSTFIX = '::'
+
+class FilePath(StrEnum):
+    PREFIX = '@::'
+    POSTFIX = '::'
+
+
 MAX_FILE_SIZE = 5 * 1024 * 1024
 
 
@@ -21,11 +26,13 @@ def read_file(path: str) -> str:
 
 
 def insert_files(query: str) -> str:
-    while FILE_PATH_PREFIX in query:
-        begin = query.find(FILE_PATH_PREFIX) + 3
-        end = query.find(FILE_PATH_POSTFIX, begin + 2)
+    while FilePath.PREFIX in query:
+        begin = query.find(FilePath.PREFIX) + 3
+        end = query.find(FilePath.POSTFIX, begin + 2)
+
         file_path = query[begin:end]
         content = read_file(file_path)
-        target = FILE_PATH_PREFIX + file_path + FILE_PATH_POSTFIX
+
+        target = FilePath.PREFIX + file_path + FilePath.POSTFIX
         query = query.replace(target, content)
     return query

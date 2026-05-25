@@ -1,4 +1,4 @@
-from utils.message import AGENT, ROLE, CONTENT, Message
+from utils.message import Roles, ROLE, CONTENT, Message
 
 
 # light green
@@ -13,7 +13,7 @@ def _format_system_msg(content: str) -> str:
 
 class Cli:
     def print_msg(self, msg: Message) -> None:
-        if msg[ROLE] == AGENT:
+        if msg[ROLE] == Roles.AGENT:
             print(_format_agent_msg(msg[CONTENT]))
             return
         print(_format_system_msg(msg[CONTENT]))

@@ -1,6 +1,6 @@
 from agent.gateway import Gateway
 from agent.config import Config
-from utils.message import SYSTEM, USER, AGENT, CONTENT, Message, create_msg
+from utils.message import Roles, CONTENT, Message, create_msg
 
 
 class Agent:
@@ -15,7 +15,7 @@ class Agent:
         self.limit_message = config.limit_message
         self.limit_chars = config.limit_chars
         self.system_prompt = (
-            create_msg(SYSTEM, config.system_prompt) if config.system_prompt else None
+            create_msg(Roles.SYSTEM, config.system_prompt) if config.system_prompt else None
         )
         self.gateway = Gateway(config)
         self.context = []
@@ -32,10 +32,13 @@ class Agent:
     def _add_msg_to_context(self, msg: Message) -> None:
         self.count_char += len(msg[CONTENT])
         self.context.append(msg)
+
         if self.limit_message and len(self.context) > self.limit_message:
             self._pop_first()
+
         if self.limit_chars is None:
             return
+
         while self.count_char > self.limit_chars and self.context:
             diff = self.count_char - self.limit_chars
             if len(self.context[0][CONTENT]) < diff:
@@ -50,24 +53,28 @@ class Agent:
         return self.gateway.request(content)
 
     def request(self, content: str) -> Message | None:
-        user_msg = create_msg(USER, content)
+        user_msg = create_msg(Roles.USER, content)
         self._add_msg_to_context(user_msg)
+
         response = self._post_context()
         if response is None:
             return None
-        response_msg = create_msg(AGENT, response)
+
+        response_msg = create_msg(Roles.AGENT, response)
         self._add_msg_to_context(response_msg)
         return response_msg
 
     def process_chunk(self, user_prompt: str, chunk: str) -> Message | None:
-        user_msg = create_msg(USER, user_prompt)
+        user_msg = create_msg(Roles.USER, user_prompt)
         self._add_msg_to_context(user_msg)
-        chunk_msg = create_msg(USER, chunk)
+
+        chunk_msg = create_msg(Roles.USER, chunk)
         self._add_msg_to_context(chunk_msg)
+
         response = self._post_context()
         if response is None:
             return None
-        return create_msg(AGENT, response)
+        return create_msg(Roles.AGENT, response)
 
     def reset(self) -> None:
         self.context = []

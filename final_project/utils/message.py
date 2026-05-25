@@ -1,11 +1,14 @@
+from enum import StrEnum
 from typing import Literal, TypedDict
 
 ROLE: Literal['role'] = 'role'
 CONTENT: Literal['content'] = 'content'
 
-SYSTEM = 'system'
-USER = 'user'
-AGENT = 'assistant'
+
+class Roles(StrEnum):
+    SYSTEM = 'system'
+    USER = 'user'
+    AGENT = 'assistant'
 
 
 class Message(TypedDict):

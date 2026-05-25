@@ -57,25 +57,32 @@ class Config:
                 yaml_config = yaml.safe_load(file) or {}
         except FileNotFoundError:
             yaml_config = {}
+
         api_host: str | None = os.environ.get('API_HOST') or yaml_config.get('api_host')
         if api_host is None:
             raise ConfigException('No URL provided.')
         self.api_host = api_host
+
         api_key: str | None = os.environ.get('API_KEY') or yaml_config.get('api_key')
         if api_key is None:
             raise ConfigException('No API key provided.')
         self.api_key = api_key
+
         self.limit_message = _convert_limit(
             os.environ.get('LIMIT_MESSAGE') or yaml_config.get('limit_message')
         )
+
         self.limit_chars = _convert_limit(
             os.environ.get('LIMIT_CHARS') or yaml_config.get('limit_chars')
         )
+
         model: str | None = os.environ.get('MODEL') or yaml_config.get('model')
         if model is None:
             raise ConfigException('No model provided.')
         self.model = model
+
         self.temperature = _convert_temperature(
             os.environ.get('TEMPERATURE') or yaml_config.get('temperature')
         )
+
         self.system_prompt = yaml_config.get('system_prompt')
